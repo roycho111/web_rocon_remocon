@@ -1,7 +1,9 @@
 var ros = new ROSLIB.Ros();
 var glistRoles = [];
 var glistInteractions = [];
-var glistApps = [];
+var gInteractionsData = [];
+var gUrlreadytoStart;
+
 
 /*** main ***/
 $(document).ready(function () {
@@ -10,6 +12,7 @@ $(document).ready(function () {
     DisConnect();
     AddUrl();
     ListItemSelect();
+    StartApp();
 });
 
 function Init()
@@ -20,7 +23,8 @@ function Init()
 function settingROSCallbacks()
 {
   ros.on('error', function(error) {
-        console.log(error.Event);
+        console.log('error occured on ' + error.target + " : " + error.target.url);
+        alert('error occured on ' + error.target + " : " + error.target.url);
         $("#connectionInfo").val("Disconnected");
         $("#connectionInfo").attr("style", "color:red");
         
@@ -90,11 +94,9 @@ function DisConnect()
     $("#disconnectBtn").click(function () {
         ros.close();
         
-        glistRoles = [];
-        $("#roles_listgroup").children().remove();
-        
-        glistInteractions = [];
-        $("#interaction_listgroup").children().remove();
+        ResetRoleList();
+        ResetInteractionList();
+        ResetDescriptionList();
     });
 }
 
@@ -124,7 +126,7 @@ function AddUrl()
 function GetRoles()
 {
     var request = new ROSLIB.ServiceRequest({
-        uri : 'rocon:/pc'
+        uri : 'rocon:/*'
     });
 
     CallService(ros, '/concert/interactions/get_roles', 'rocon_interaction_msgs/GetRoles', request, function(result) {
@@ -147,7 +149,7 @@ function GetInteractions(selectedrole)
 {
     var request = new ROSLIB.ServiceRequest({
         roles : [selectedrole],
-        uri : 'rocon:/pc'
+        uri : 'rocon:/*'
     });
 
     CallService(ros, '/concert/interactions/get_interactions', 'rocon_interaction_msgs/GetInteractions', request, function(result) {
@@ -162,17 +164,72 @@ function GetInteractions(selectedrole)
 function DisplayInteractions()
 {
     for (var i = 0; i < glistInteractions.length; i++) {
-        $("#interactions_listgroup").append('<a href="#" id="interactionlist_' + i + '" class="list-group-item">' + glistInteractions[i].name + '</a>');
+        $("#interactions_listgroup").append('<a href="#" id="interactionlist_' + i + '" class="list-group-item">' + glistInteractions[i].display_name + '</a>');
     }
+}
+
+function ClassifyInteraction(interaction)
+{
+    var newurl;
+    var url = interaction.name;
+    if (url.search("web_url") >= 0) {
+        newurl = url.substring(8, url.length - 1);
+    }
+    else if (url.search("web_app") >= 0) {
+        var tempurl = url.substring(8, url.length - 1);
+        newurl = PrepareWebappUrl(interaction, tempurl);
+    }
+    else {
+        newurl = null;
+    }
+    
+    return newurl;
+}
+
+
+function PrepareWebappUrl(interaction, base_url)
+{
+    gInteractionsData['display_name'] = interaction.display_name;
+    gInteractionsData['parameters'] = jsyaml.load(interaction.parameters);
+    gInteractionsData['remappings'] = [];
+    for (var r in interaction.remappings) {
+        gInteractionsData['remappings'][r.remap_from] = r.remap_to;
+    }
+    
+    console.log("Remocon Info : web app query string %s" % interaction_data);
+    
+    query_string_mappings = [];
+    query_string_mappings['interaction_data'] = JSON.stringfly(gInteractionsData);
+
+    return base_url + "?" + encodeURIComponent(query_string_mappings);
+}
+
+function DisplayDescription(interaction)
+{
+    $("#startappBtn").show();
+
+    $.each(interaction, function(key, value) {
+        if (key == "remappings") {
+            return true;
+        }
+        $("#descriptionpanel").append('<p><span style="font-weight:bold">' + key + '</span> : ' + value + '</p>');
+    });
+    
+    $("#descriptionpanel").append('<p><span style="font-weight:bold">remappings</span> : </p>');
+    $.each(interaction["remappings"], function(key, value) {
+        $("#descriptionpanel").append('<p>[ ' + key + '</span> : ' + value + ' ]</p>');
+    });
+
 }
 
 function ListItemSelect()
 {
     $("#roles_listgroup").on("click", "a", function (e) {
         e.preventDefault();
-        $("#interactions_listgroup").children().remove();
-        glistInteractions = [];
         
+        ResetInteractionList();
+        ResetDescriptionList();
+
         var nCnt = $("#roles_listgroup").children().length;
         for (var i = 0; i < nCnt; i++){
             $("#roles_listgroup").children(i).attr('class', 'list-group-item');
@@ -182,11 +239,11 @@ function ListItemSelect()
         var nCnt = $(this).attr('id').charAt($(this).attr('id').length - 1);
         GetInteractions(glistRoles[nCnt]);
     });
-    
+
     $("#interactions_listgroup").on("click", "a", function (e) {
         e.preventDefault();
-        $("#apps_listgroup").children().remove();
-        glistApps = [];
+        
+        ResetDescriptionList();
         
         var nCnt = $("#interactions_listgroup").children().length;
         for (var i = 0; i < nCnt; i++){
@@ -195,9 +252,40 @@ function ListItemSelect()
         $(this).toggleClass('list-group-item list-group-item active');
 
         var nCnt = $(this).attr('id').charAt($(this).attr('id').length - 1);
-        alert(glistInteractions[nCnt].name);
-        //GetInteractions(glistRoles[nCnt]);
+        gUrlreadytoStart = ClassifyInteraction(glistInteractions[nCnt]);
+        DisplayDescription(glistInteractions[nCnt]);
     });
+}
+
+function StartApp()
+{
+    $("#startappBtn").hide();
+    $("#startappBtn").click(function () {
+        if (gUrlreadytoStart == null) {
+            alert("not available on this platform");
+            return;
+        }
+        window.open(gUrlreadytoStart);
+    });
+}
+
+function ResetRoleList()
+{
+    glistRoles = [];
+    $("#roles_listgroup").children().remove();
+}
+
+function ResetInteractionList()
+{
+    $("#interactions_listgroup").children().remove();
+    glistInteractions = [];
+    $("#startappBtn").hide();
+}
+
+function ResetDescriptionList()
+{
+    $("#descriptionpanel").children().remove();
+    $("#startappBtn").hide();
 }
 
 /****************Wrapper******************/
@@ -218,9 +306,12 @@ function CallService(ros, serviceName, serviceType, request, callBack)
             console.log(error);
         });
     } catch (e) {
+        console.log(message);
         alert(e.message);
     } 
 }
+
+
 
 
 
