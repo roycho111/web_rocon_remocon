@@ -1,11 +1,19 @@
+/**
+    * @author Janghee Cho - roycho111@naver.com
+*/
+
 var ros = new ROSLIB.Ros();
 var glistRoles = [];
 var glistInteractions = [];
 var gInteractionsData = [];
 var gUrlreadytoStart;
 
+var gUrl;
+var gHostname;
 
-/*** main ***/
+/**
+    * Starts from here
+*/
 $(document).ready(function () {
     Init();
     Connect();
@@ -15,21 +23,40 @@ $(document).ready(function () {
     StartApp();
 });
 
+/**
+    * Initialize lists and set ROS callbacks
+    *
+*/
 function Init()
 {
     settingROSCallbacks();
+    InitList();
 }
 
+
+/*
+    * Receives following ROS callbacks and throw exception for error
+    *    * 'error'
+    *    * 'connection'
+    *    * 'close' 
+    *
+    * Updates connectionInfo text
+    *
+*/
 function settingROSCallbacks()
 {
   ros.on('error', function(error) {
-        console.log('error occured on ' + error.target + " : " + error.target.url);
-        alert('error occured on ' + error.target + " : " + error.target.url);
+        // throw exception for error
+        console.log('Connection refused. Is the master running?');
+        alert('Connection refused. Is the master running?');
+
         $("#connectionInfo").val("Disconnected");
         $("#connectionInfo").attr("style", "color:red");
         
         $("#connectBtn").show();
         $("#disconnectBtn").hide();
+        
+        InitList();
     });
 
     ros.on('connection', function() {
@@ -39,6 +66,10 @@ function settingROSCallbacks()
         
         $("#connectBtn").hide();
         $("#disconnectBtn").show();
+        
+        InitList();
+        DisplayMasterInfo()
+        GetRoles();
     });
 
     ros.on('close', function() {
@@ -48,64 +79,74 @@ function settingROSCallbacks()
         
         $("#connectBtn").show();
         $("#disconnectBtn").hide();
+        
+        InitList();
     });
 }
 
+/**
+    * Event function when 'Connect' button clicked
+    *
+    *   1. get the url, hostname value out of selected url list
+    *   2. extract the url
+    *   3. connect to rosbridge
+    *
+*/
 function Connect()
 {
     $("#connectBtn").click(function () {
         var url = $("#urlList option:selected").attr("url");
         var name = $("#urlList option:selected").attr("hostname");
-
-        url.toLowerCase();
-        var bhttp_exist = url.search("http://");
-        var bhttps_exist = url.search("https://");
         
-        var trimCnt = 0;
-        if (bhttp_exist >= 0) {
-            trimCnt = 7;
-        }
-        if (bhttps_exist >= 0) {
-            trimCnt = 8;
-        }
+        gUrl = url;
+        gHostname = name;
 
-        if (url.charAt(url.length -1) == "/") {
-            url = url.substring(0, url.length - 1);
+        // extracts the exact url
+        var newurl;
+        newurl = url.replace("http://", "");
+        newurl = newurl.replace("https://", "");
+        
+        for (var i = 0; i < newurl.length; i++) {
+            newurl = newurl.replace("/", "");
+            newurl = newurl.replace(" ", "");
         }
-
-        url = url.substring(trimCnt, url.length);
 
         try {
-            ros.connect('ws://' + url + ':9090');
+            ros.connect('ws://' + newurl + ':9090');
             $(this).text = "Disconnect";
-        }
-        catch(e) {
+        } catch(e) {
             console.log(e.message);
             alert(e.message);
         }
-        
-        GetRoles();
     });
 }
 
+/**
+    * Event function when 'Disconnect' button clicked
+    *
+*/
 function DisConnect()
 {
     $("#disconnectBtn").hide();
     $("#disconnectBtn").click(function () {
         ros.close();
-        
-        ResetRoleList();
-        ResetInteractionList();
-        ResetDescriptionList();
     });
 }
 
+/**
+    * Event function when 'Add Url' button clicked
+    *
+    *   1. get the value of currently typed url and hostname
+    *   2. add to url list
+    *
+*/
 function AddUrl()
 {
     $("#addurl_addBtn").click(function () {
         var url = $("#typeURL").val();
         var name = $("#typeHostName").val();
 
+        // set default string
         if (url == "" || url == "http://") {
             url = "http://localhost";
         }
@@ -117,12 +158,27 @@ function AddUrl()
         $("#urlList option:last").attr("hostname", name);
         $("#urlList option:last").attr("url", url);
         $("#urlList option:last").attr("selected", "selected");
-
-        var namestr = $("#urlList option:last").text();
-        var urlstr = $("#urlList option:last").val();
     });
 }
 
+function DisplayMasterInfo()
+{
+    GetParam(ros, "/concert/name", function(value) {
+        $("#masterinfopanel").append('<p><strong>name</strong> : ' + value +'</p>');
+    });
+    
+    $("#masterinfopanel").append('<p><strong>master_url</strong> : ' + gUrl +'</p>');
+    $("#masterinfopanel").append('<p><strong>hostname</strong> : ' + gHostname +'</p>');
+
+    GetParam(ros, "/concert/description", function(value) {
+        $("#masterinfopanel").append('<p><strong>description</strong> : ' + value +'</p>');
+    });
+}
+
+/**
+    * Call service for roles and add to role list
+    *
+*/
 function GetRoles()
 {
     var request = new ROSLIB.ServiceRequest({
@@ -138,13 +194,23 @@ function GetRoles()
     });
 }
 
+/**
+    * Display the roles list to the screen
+    *
+*/
 function DisplayRoles()
 {
     for (var i = 0; i < glistRoles.length; i++) {
-        $("#roles_listgroup").append('<a href="#" id="rolelist_' + i + '" class="list-group-item">' + glistRoles[i] + '</a>');
+        $("#roles_listgroup").append('<a href="#" id="rolelist_' + i + '" class="list-group-item"><strong>' + glistRoles[i] + '</strong></a>');
     }
 }
 
+/**
+    * Call service for interactions and add to interaction list
+    * 
+    *
+    *   @param : selectedrole - string
+*/
 function GetInteractions(selectedrole)
 {
     var request = new ROSLIB.ServiceRequest({
@@ -161,17 +227,28 @@ function GetInteractions(selectedrole)
     });
 }
 
+/**
+    * Display the interaction list to the screen
+    *
+*/
 function DisplayInteractions()
 {
     for (var i = 0; i < glistInteractions.length; i++) {
-        $("#interactions_listgroup").append('<a href="#" id="interactionlist_' + i + '" class="list-group-item">' + glistInteractions[i].display_name + '</a>');
+        $("#interactions_listgroup").append('<a href="#" id="interactionlist_' + i + '" class="list-group-item"><img src="data:' + glistInteractions[i].icon.resource_name + ';base64,' + glistInteractions[i].icon.data + 'alt="Red dot" style="height:50px; width:50px;"></img>&nbsp;&nbsp;&nbsp;<strong>' + glistInteractions[i].display_name + '</strong></a>');
     }
 }
 
+/**
+    * Classify the interaction whether it's (web_url) or (web_app)
+    *
+    *
+    *   @param : interaction - interactions[]
+*/
 function ClassifyInteraction(interaction)
 {
     var newurl;
     var url = interaction.name;
+
     if (url.search("web_url") >= 0) {
         newurl = url.substring(8, url.length - 1);
     }
@@ -182,28 +259,44 @@ function ClassifyInteraction(interaction)
     else {
         newurl = null;
     }
-    
+
     return newurl;
 }
 
-
+/**
+    * Url synthesiser for sending remappings and parameters information.
+    *
+    *   1. convert and set the informations
+    *       - parameter (yaml string)
+    *       - remapping (rocon_std_msgs.Remapping[])
+    *   2. Package all the data in json format and dump it to one query string variable
+    *   3. Encode the url and finish constructing
+*/
 function PrepareWebappUrl(interaction, base_url)
 {
-    gInteractionsData['display_name'] = interaction.display_name;
-    gInteractionsData['parameters'] = jsyaml.load(interaction.parameters);
-    gInteractionsData['remappings'] = [];
-    for (var r in interaction.remappings) {
-        gInteractionsData['remappings'][r.remap_from] = r.remap_to;
-    }
-    
-    console.log("Remocon Info : web app query string %s" % interaction_data);
-    
-    query_string_mappings = [];
-    query_string_mappings['interaction_data'] = JSON.stringfly(gInteractionsData);
+    var interaction_data = {};
+    interaction_data['display_name'] = interaction.display_name;
+    interaction_data['parameters'] = jsyaml.load(interaction.parameters);
+    interaction_data['remappings'] = {};
 
-    return base_url + "?" + encodeURIComponent(query_string_mappings);
+    $.each(interaction.remappings, function(key, value) {
+        interaction_data['remappings'][value.remap_from] = value.remap_to;
+    });
+    
+    query_string_mappings = {};
+    query_string_mappings['interaction_data'] = JSON.stringify(interaction_data);
+
+    console.log(query_string_mappings['interaction_data']);
+    
+    var url = base_url + "?interaction_data=" + encodeURIComponent(query_string_mappings['interaction_data']);
+
+    return url;
 }
 
+/**
+    * Display the description list to the screen
+    *
+*/
 function DisplayDescription(interaction)
 {
     $("#startappBtn").show();
@@ -217,11 +310,16 @@ function DisplayDescription(interaction)
     
     $("#descriptionpanel").append('<p><span style="font-weight:bold">remappings</span> : </p>');
     $.each(interaction["remappings"], function(key, value) {
-        $("#descriptionpanel").append('<p>[ ' + key + '</span> : ' + value + ' ]</p>');
+        $("#descriptionpanel").append('<p>[remap_from] : ' + value.remap_from + '</p>');
+        $("#descriptionpanel").append('<p>[remap_to] : ' + value.remap_to + '</p>');
     });
 
 }
 
+/**
+    * Event function when items in list is clicked
+    *
+*/
 function ListItemSelect()
 {
     $("#roles_listgroup").on("click", "a", function (e) {
@@ -269,6 +367,19 @@ function StartApp()
     });
 }
 
+function InitList()
+{
+    ResetMasterInfo();
+    ResetRoleList();
+    ResetInteractionList();
+    ResetDescriptionList();
+}
+
+function ResetMasterInfo()
+{
+    $("#masterinfopanel").children().remove();
+}
+
 function ResetRoleList()
 {
     glistRoles = [];
@@ -277,8 +388,8 @@ function ResetRoleList()
 
 function ResetInteractionList()
 {
-    $("#interactions_listgroup").children().remove();
     glistInteractions = [];
+    $("#interactions_listgroup").children().remove();
     $("#startappBtn").hide();
 }
 
@@ -288,13 +399,12 @@ function ResetDescriptionList()
     $("#startappBtn").hide();
 }
 
-/****************Wrapper******************/
 function CallService(ros, serviceName, serviceType, request, callBack)
 {
     var service = new ROSLIB.Service({
-    ros : ros,
-    name : serviceName,
-    serviceType : serviceType
+        ros : ros,
+        name : serviceName,
+        serviceType : serviceType
     });
 
     // get response
@@ -311,7 +421,17 @@ function CallService(ros, serviceName, serviceType, request, callBack)
     } 
 }
 
-
+function GetParam(ros, paramName, callBack)
+{
+    var request = new ROSLIB.Param({
+        ros : ros,
+        name : paramName
+    });
+    
+    request.get(function(value) {
+        callBack(value);
+    });
+}
 
 
 
