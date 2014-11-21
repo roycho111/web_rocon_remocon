@@ -2,14 +2,15 @@
     * @author Janghee Cho - roycho111@naver.com
 */
 
+
 var ros = new ROSLIB.Ros();
 var glistRoles = [];
 var glistInteractions = [];
-var gInteractionsData = [];
 var gUrlreadytoStart;
 
 var gUrl;
-var gHostname;
+var ncookieCnt;
+
 
 /**
     * Starts from here
@@ -19,9 +20,11 @@ $(document).ready(function () {
     Connect();
     DisConnect();
     AddUrl();
+    DeleteUrl();
     ListItemSelect();
     StartApp();
 });
+
 
 /**
     * Initialize lists and set ROS callbacks
@@ -30,6 +33,7 @@ $(document).ready(function () {
 function Init()
 {
     settingROSCallbacks();
+    ReadCookies();
     InitList();
 }
 
@@ -50,9 +54,6 @@ function settingROSCallbacks()
         console.log('Connection refused. Is the master running?');
         alert('Connection refused. Is the master running?');
 
-        $("#connectionInfo").val("Disconnected");
-        $("#connectionInfo").attr("style", "color:red");
-        
         $("#connectBtn").show();
         $("#disconnectBtn").hide();
         
@@ -61,27 +62,47 @@ function settingROSCallbacks()
 
     ros.on('connection', function() {
         console.log('Connection made!');
-        $("#connectionInfo").val("Connected");
-        $("#connectionInfo").attr("style", "color:green");
-        
+
         $("#connectBtn").hide();
         $("#disconnectBtn").show();
         
         InitList();
-        DisplayMasterInfo()
+        DisplayMasterInfo();
         GetRoles();
+        MasterInfoMode();
     });
 
     ros.on('close', function() {
         console.log('Connection closed.');
-        $("#connectionInfo").val("Disconnected");
-        $("#connectionInfo").attr("style", "color:red");
-        
+
         $("#connectBtn").show();
         $("#disconnectBtn").hide();
         
         InitList();
     });
+}
+
+/**
+    * Read Cookies
+    *
+*/
+function ReadCookies()
+{
+    $.cookie.defaults = { path: '/', expires: 365 };
+
+    ncookieCnt = $.cookie("cookieCount");
+
+    // init cookie count
+    if (ncookieCnt == null || ncookieCnt < 0) {
+        $.cookie("cookieCount", 0);
+        ncookieCnt = 0;
+    }
+
+    // read cookie and add to url list
+    for (var i = 0; i < ncookieCnt; i++) {
+        $("#urlList").append(new Option($.cookie("cookie_url" + i)));
+        $("#urlList option:last").attr("cookieNum", i);
+    }
 }
 
 /**
@@ -95,24 +116,30 @@ function settingROSCallbacks()
 function Connect()
 {
     $("#connectBtn").click(function () {
-        var url = $("#urlList option:selected").attr("url");
-        var name = $("#urlList option:selected").attr("hostname");
+        var url = $("#urlList option:selected").val();
         
+        if (url == "(Please add URL)") {
+            return;
+        }
+    
         gUrl = url;
-        gHostname = name;
 
-        // extracts the exact url
+        // extract the exact url
         var newurl;
-        newurl = url.replace("http://", "");
-        newurl = newurl.replace("https://", "");
-        
+        newurl = url.replace("ws://", "");
+
         for (var i = 0; i < newurl.length; i++) {
             newurl = newurl.replace("/", "");
             newurl = newurl.replace(" ", "");
         }
+        
+        // set default port
+        if (newurl.search(":") < 0) {
+            newurl += ":9090";
+        }
 
         try {
-            ros.connect('ws://' + newurl + ':9090');
+            ros.connect('ws://' + newurl);
             $(this).text = "Disconnect";
         } catch(e) {
             console.log(e.message);
@@ -130,6 +157,7 @@ function DisConnect()
     $("#disconnectBtn").hide();
     $("#disconnectBtn").click(function () {
         ros.close();
+        AddUrlMode();
     });
 }
 
@@ -144,34 +172,72 @@ function AddUrl()
 {
     $("#addurl_addBtn").click(function () {
         var url = $("#typeURL").val();
-        var name = $("#typeHostName").val();
 
         // set default string
-        if (url == "" || url == "http://") {
-            url = "http://localhost";
-        }
-        if (name == "") {
-            name = "localhost";
+        if (url == "" || url == "ws://") {
+            url = "ws://localhost:9090";
         }
 
-        $("#urlList").append(new Option("<" + name + ">  :  " + url));
-        $("#urlList option:last").attr("hostname", name);
-        $("#urlList option:last").attr("url", url);
+        // add url
+        $("#urlList").append(new Option(url));
         $("#urlList option:last").attr("selected", "selected");
+        $("#urlList option:last").attr("cookieNum", ncookieCnt);
+
+        // add cookie
+        $.cookie("cookie_url" + ncookieCnt, url);
+        $.cookie("cookieCount", ++ncookieCnt);
     });
 }
 
+/**
+    * Event function when 'Minus' button clicked
+    *
+*/
+function DeleteUrl()
+{
+    $("#urldeleteBtn").click(function () {
+        if ($("#urlList option:selected").val() != "(Please add URL)") {
+        
+            // delete cookie
+            var cookieNum = $("#urlList option:selected").attr("cookieNum");
+            $.cookie("cookie_url" + cookieNum, null);
+            
+            if (ncookieCnt > 0) {
+                $.cookie("cookieCount", --ncookieCnt);
+            }
+            
+            $("#urlList option:selected").remove();
+
+            var listCnt = $("#urlList option").length;
+            var cnt = 0;
+
+            // rearrange cookies
+            // not including the first disabled option
+            for (var i = 1; i < listCnt; i++) {
+                var url = $("#urlList option:eq(" + i + ")").val();
+
+                $("#urlList option:eq(" + i + ")").attr("cookieNum", cnt);
+                $.cookie("cookie_url" + cnt, url);
+                cnt++;
+            }
+        }
+    });
+}
+
+/**
+    * Display master info
+    *
+*/
 function DisplayMasterInfo()
 {
-    GetParam(ros, "/concert/name", function(value) {
-        $("#masterinfopanel").append('<p><strong>name</strong> : ' + value +'</p>');
-    });
-    
-    $("#masterinfopanel").append('<p><strong>master_url</strong> : ' + gUrl +'</p>');
-    $("#masterinfopanel").append('<p><strong>hostname</strong> : ' + gHostname +'</p>');
+    $("#selecturl").hide();
+    $("#masterinfo").show();
 
-    GetParam(ros, "/concert/description", function(value) {
-        $("#masterinfopanel").append('<p><strong>description</strong> : ' + value +'</p>');
+    SubscribeTopic(ros, "/concert/info", "rocon_std_msgs/MasterInfo", function(message) {
+        $("#masterinfopanel").append('<p style="float: left"><img src="data:' + message["icon"]["resource_name"] + ';base64,' + message["icon"]["data"] + '" alt="Red dot" style="height:75px; width:75px;"></p>');
+        $("#masterinfopanel").append('<p><strong>&nbsp;&nbsp;&nbsp;name</strong> : ' + message["name"] +'</p>');
+        $("#masterinfopanel").append('<p><strong>&nbsp;&nbsp;&nbsp;master_url</strong> : ' + gUrl +'</p>');
+        $("#masterinfopanel").append('<p><strong>&nbsp;&nbsp;&nbsp;description</strong> : ' + message["description"] +'</p>');
     });
 }
 
@@ -181,8 +247,9 @@ function DisplayMasterInfo()
 */
 function GetRoles()
 {
+    var browser = GetBrowser();
     var request = new ROSLIB.ServiceRequest({
-        uri : 'rocon:/*'
+        uri : 'rocon:/*/*/*/' + browser
     });
 
     CallService(ros, '/concert/interactions/get_roles', 'rocon_interaction_msgs/GetRoles', request, function(result) {
@@ -234,7 +301,11 @@ function GetInteractions(selectedrole)
 function DisplayInteractions()
 {
     for (var i = 0; i < glistInteractions.length; i++) {
-        $("#interactions_listgroup").append('<a href="#" id="interactionlist_' + i + '" class="list-group-item"><img src="data:' + glistInteractions[i].icon.resource_name + ';base64,' + glistInteractions[i].icon.data + 'alt="Red dot" style="height:50px; width:50px;"></img>&nbsp;&nbsp;&nbsp;<strong>' + glistInteractions[i].display_name + '</strong></a>');
+    
+        console.log("data : " + glistInteractions[i].icon.resource_name);
+        console.log("data : " + glistInteractions[i].icon.data);
+        
+        $("#interactions_listgroup").append('<a href="#" id="interactionlist_' + i + '" class="list-group-item"><img src="data:' + glistInteractions[i].icon.resource_name + ';base64,' + glistInteractions[i].icon.data + '" alt="Red dot" style="height:50px; width:50px;"></img>&nbsp;&nbsp;&nbsp;<strong>' + glistInteractions[i].display_name + '</strong></a>');
     }
 }
 
@@ -300,20 +371,23 @@ function PrepareWebappUrl(interaction, base_url)
 function DisplayDescription(interaction)
 {
     $("#startappBtn").show();
-
-    $.each(interaction, function(key, value) {
-        if (key == "remappings") {
-            return true;
-        }
-        $("#descriptionpanel").append('<p><span style="font-weight:bold">' + key + '</span> : ' + value + '</p>');
+    
+    $("#descriptionpanel").append('<p><strong>name</strong> : ' + interaction["name"] + '</p><hr>');
+    
+    $("#descriptionpanel").append('<p><strong>display_name</strong> : ' + interaction["display_name"] + '</p>');
+    $("#descriptionpanel").append('<p><strong>description</strong> : ' + interaction["description"] + '</p>');
+    $("#descriptionpanel").append('<p><strong>compatibility</strong> : ' + interaction["compatibility"] + '</p>');
+    $("#descriptionpanel").append('<p><strong>namespace</strong> : ' + interaction["namespace"] + '</p><hr>');
+    
+    var remap_from;
+    var remap_to;
+    $.each(interaction["remappings"], function(key, value) {
+        remap_from = value.remap_from;
+        remap_to = value.remap_to;
     });
     
-    $("#descriptionpanel").append('<p><span style="font-weight:bold">remappings</span> : </p>');
-    $.each(interaction["remappings"], function(key, value) {
-        $("#descriptionpanel").append('<p>[remap_from] : ' + value.remap_from + '</p>');
-        $("#descriptionpanel").append('<p>[remap_to] : ' + value.remap_to + '</p>');
-    });
-
+    $("#descriptionpanel").append('<p><strong>remappings</strong> : [remap_from:' + remap_from + '] [remap_to:' + remap_to +']</p>');
+    $("#descriptionpanel").append('<p><strong>parameters</strong> : ' + interaction["parameters"] + '</p>');
 }
 
 /**
@@ -355,6 +429,10 @@ function ListItemSelect()
     });
 }
 
+/**
+    * Event function when 'Start App' Button is clicked
+    *
+*/
 function StartApp()
 {
     $("#startappBtn").hide();
@@ -367,12 +445,17 @@ function StartApp()
     });
 }
 
+/**
+    * Init all lists
+    *
+*/
 function InitList()
 {
     ResetMasterInfo();
     ResetRoleList();
     ResetInteractionList();
     ResetDescriptionList();
+    AddUrlMode();
 }
 
 function ResetMasterInfo()
@@ -399,6 +482,26 @@ function ResetDescriptionList()
     $("#startappBtn").hide();
 }
 
+function MasterInfoMode()
+{
+    $("#selecturl").hide();
+    $("#masterinfo").show();
+    $("#urladdBtn").hide();
+    $("#urldeleteBtn").hide();
+}
+
+function AddUrlMode()
+{
+    $("#selecturl").show();
+    $("#masterinfo").hide();
+    $("#urladdBtn").show();
+    $("#urldeleteBtn").show();
+}
+
+/**
+    * Wrapper function for callService
+    *
+*/
 function CallService(ros, serviceName, serviceType, request, callBack)
 {
     var service = new ROSLIB.Service({
@@ -421,6 +524,10 @@ function CallService(ros, serviceName, serviceType, request, callBack)
     } 
 }
 
+/**
+    * Wrapper function for get Param
+    *
+*/
 function GetParam(ros, paramName, callBack)
 {
     var request = new ROSLIB.Param({
@@ -433,6 +540,37 @@ function GetParam(ros, paramName, callBack)
     });
 }
 
+/**
+    * Wrapper function for subscribing topic
+    *
+*/
+function SubscribeTopic(ros, topicName, msgType, callBack)
+{
+    var listener = new ROSLIB.Topic({
+        ros : ros,
+        name : topicName,
+        messageType : msgType
+    });
+    
+    listener.subscribe(function(message) {
+        callBack(message);
+        listener.unsubscribe();
+    });
+}
+
+/**
+    * Get browser name
+    *
+*/
+function GetBrowser()
+{
+    var agt = navigator.userAgent.toLowerCase();
+    if (agt.indexOf("chrome") != -1) return 'chrome';
+    if (agt.indexOf("opera") != -1) return 'opera';
+    if (agt.indexOf("firefox") != -1) return 'firefox';
+    if (agt.indexOf("safari") != -1) return 'safari';
+    if (agt.indexOf("msie") != -1) return 'internet_explorer';
+}
 
 
 

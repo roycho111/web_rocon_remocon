@@ -5,14 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Rocon - Web Remocon</title>
 
-    <!-- Le styles -->
-    <!--
-    <link rel="stylesheet" href="css/bootstrap/bootstrap.css">
-    -->
-    <link rel="stylesheet" href="http://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap.min.css">
-    <link rel="stylesheet" href="css/bootstrap/bootstrap-theme.min.css">
+    <!-- JS, Jquery, Bootstrap -->
     <script type="text/javascript" src="js/jquery/jquery-1.11.1.min.js"></script>
     <script type="text/javascript" src="js/bootstrap/bootstrap.min.js"></script>
+    <script type="text/javascript" src="js/jquery/jquery.cookie.js"></script>
+
+    <link rel="stylesheet" href="http://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap.min.css">
+    <link rel="stylesheet" href="css/bootstrap/bootstrap-theme.min.css">
     
     <!-- ROS related -->
     <script src="http://cdn.robotwebtools.org/EventEmitter2/current/eventemitter2.min.js"></script>
@@ -32,9 +31,6 @@
                 <div class="container-fluid">
                     <img class="navbar-brand" style="height:65px; width:150px;" src="img/rocon_logo.png"></img>
                     <a class="navbar-brand" href="#" style="margin-top:6px">Web Remocon</a>
-                    <p class="input-prepend navbar-text pull-right" style="margin-top:20px">
-                        <input class="input-large" id="connectionInfo" type="text" value="Disconnected" style="color:red" disabled></input>
-                    </p>
                 </div>
             </div>
         </div>
@@ -42,20 +38,42 @@
         <br><br><br><hr>
         <div class="row">
             <div class="col-sm-4">
-                <h5 class="text-center">Select Master URL</h5>
-                <select class="form-control" id="urlList">
-                    <option disabled="disabled">(Please add URL)</option>
-                </select>
+                <div id="selecturl">
+                    <h5 class="text-center"><strong>Select Master URL</strong></h5>
+                    <select class="form-control" id="urlList">
+                        <option disabled="disabled">(Please add URL)</option>
+                    </select>
+                </div>
+
+                <div id="masterinfo">
+                    <div class="panel panel-default">
+                        <div class="panel-body" id="masterinfopanel">
+                            <img src="img/rocon_logo.png">
+                                <p>name : 123</p>
+                                <p>name : 123</p>
+                                <p>name : 123</p>
+                            </img>
+                        </div>
+                    </div>
+                </div>
             </div>
+
             <div class="col-sm-1">
-                <button type="button" class="btn btn-info btn btn-block" style="margin-top:25px; width:150px; height:50px; font-size:20px" data-toggle="collapse" data-target="#openaddurl">
+                <button type="button" class="btn btn-info btn btn-block" style="margin-top:20px; height:50px; font-size:20px" data-toggle="collapse" data-target="#openaddurl" id="urladdBtn">
                     <span class="glyphicon glyphicon-plus" aria-hidden="true"></span>
-                    Add
+                </button>
+                    
+            </div>
+            
+            <div class="col-sm-1">
+                <button type="button" class="btn btn-info btn btn btn-block" style="margin-top:20px; height:50px; font-size:20px" id="urldeleteBtn">
+                        <span class="glyphicon glyphicon-minus" aria-hidden="true"></span>
                 </button>
             </div>
-            <div class="col-sm-2 col-sm-offset-5">
-                <button type="button" class="btn btn-info btn btn-block" id="connectBtn" style="margin-top:25px; height:50px; font-size:20px">Connect</button>
-                <button type="button" class="btn btn-danger btn btn-block" id="disconnectBtn" style="margin-top:25px; height:50px; font-size:20px">Disconnect</button>
+    
+            <div class="col-sm-2 col-sm-offset-4">
+                <button type="button" class="btn btn-info btn btn-block" id="connectBtn" style="margin-top:20px; height:50px; font-size:20px">Connect</button>
+                <button type="button" class="btn btn-danger btn btn-block" id="disconnectBtn" style="margin-top:20px; height:50px; font-size:20px">Disconnect</button>
             </div>
         </div>
 
@@ -66,14 +84,9 @@
                     <div class="well well-sm">
                         <form role="form">
                             <div class="form-group">
-                                <label>Master URL</label>
-                                <input type="text" class="form-control" id="typeURL" value="http://" placeholder="http://localhost">
+                                <h5 class="text-center"><strong>Type Master URL</strong></h5>
+                                <input type="text" class="form-control" id="typeURL" placeholder="ws://localhost:9090">
                             </div>
-                            <div class="form-group">
-                                <label>Host Name:</label>
-                                <input type="text" class="form-control" id="typeHostName" placeholder="localhost">
-                            </div>
-
                             <div class="row">
                                 <br>
                                 <div class="col-xs-6 col-md-6">
@@ -91,20 +104,7 @@
         
         <hr>
         <div class="row">
-            <div class="col-sm-offset-4 col-sm-4 col-sm-offset-4 ">
-                <div class="well well-sm">
-                    <h3 class="text-center"><span class="label label-primary">Master Info</span></h3>
-                    <div class="panel panel-default">
-                        <div class="panel-body" id="masterinfopanel">
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <hr>
-        <div class="row">
-            <div class="col-xs-4">
+            <div class="col-sm-4">
                 <div class="well well-sm">
                     <h3 class="text-center"><span class="label label-primary">Role</span></h3>
                     <div class="list-group" id="roles_listgroup">
@@ -118,7 +118,7 @@
                 </div>
             </div>
             
-            <div class="col-xs-4">
+            <div class="col-sm-4">
                 <div class="well well-sm">
                 <h3 class="text-center"><span class="label label-primary">Interaction</span></h3>
                     <div class="list-group" id="interactions_listgroup">
@@ -126,7 +126,7 @@
                 </div>
             </div>
             
-            <div class="col-xs-4">
+            <div class="col-sm-4">
                 <div class="well well-sm">
                     <h3 class="text-center"><span class="label label-primary">Description</span></h3>
                     <div class="panel panel-default">
