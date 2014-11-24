@@ -1,7 +1,8 @@
 /**
-    * @author Janghee Cho - roycho111@naver.com
+ * @fileOverview Web version of rocon remocon
+ * @author Janghee Cho [roycho111@naver.com]
+ * @copyright Yujin Robot 2014.
 */
-
 
 var ros = new ROSLIB.Ros();
 var glistRoles = [];
@@ -11,10 +12,7 @@ var gUrlreadytoStart;
 var gUrl;
 var ncookieCnt;
 
-
-/**
-    * Starts from here
-*/
+// Starts here
 $(document).ready(function () {
     Init();
     Connect();
@@ -27,8 +25,8 @@ $(document).ready(function () {
 
 
 /**
-    * Initialize lists and set ROS callbacks
-    *
+ * Initialize lists, set ROS callbacks, read cookies.
+ * @function Init
 */
 function Init()
 {
@@ -37,15 +35,9 @@ function Init()
     InitList();
 }
 
-
-/*
-    * Receives following ROS callbacks and throw exception for error
-    *    * 'error'
-    *    * 'connection'
-    *    * 'close' 
-    *
-    * Updates connectionInfo text
-    *
+/**
+ * Receive and set ROS callbacks
+ * @function settingROSCallbacks
 */
 function settingROSCallbacks()
 {
@@ -83,8 +75,8 @@ function settingROSCallbacks()
 }
 
 /**
-    * Read Cookies
-    *
+ * Read cookies and add to url list
+ * @function ReadCookies
 */
 function ReadCookies()
 {
@@ -106,12 +98,8 @@ function ReadCookies()
 }
 
 /**
-    * Event function when 'Connect' button clicked
-    *
-    *   1. get the url, hostname value out of selected url list
-    *   2. extract the url
-    *   3. connect to rosbridge
-    *
+ * Event function when 'Connect' button clicked
+ * @function Connect
 */
 function Connect()
 {
@@ -149,8 +137,8 @@ function Connect()
 }
 
 /**
-    * Event function when 'Disconnect' button clicked
-    *
+ * Event function when 'Disconnect' button clicked
+ * @function DisConnect
 */
 function DisConnect()
 {
@@ -162,11 +150,8 @@ function DisConnect()
 }
 
 /**
-    * Event function when 'Add Url' button clicked
-    *
-    *   1. get the value of currently typed url and hostname
-    *   2. add to url list
-    *
+ * Event function when 'Add Url' button clicked
+ * @function AddUrl
 */
 function AddUrl()
 {
@@ -190,8 +175,8 @@ function AddUrl()
 }
 
 /**
-    * Event function when 'Minus' button clicked
-    *
+ * Event function when 'Minus' button clicked
+ * @function DeleteUrl
 */
 function DeleteUrl()
 {
@@ -225,8 +210,8 @@ function DeleteUrl()
 }
 
 /**
-    * Display master info
-    *
+ * Display master's info to the screen
+ * @function DisplayMasterInfo
 */
 function DisplayMasterInfo()
 {
@@ -242,8 +227,8 @@ function DisplayMasterInfo()
 }
 
 /**
-    * Call service for roles and add to role list
-    *
+ * Call service for roles and add to role list
+ * @function GetRoles
 */
 function GetRoles()
 {
@@ -262,8 +247,8 @@ function GetRoles()
 }
 
 /**
-    * Display the roles list to the screen
-    *
+ * Display the roles list to the screen
+ * @function DisplayRoles
 */
 function DisplayRoles()
 {
@@ -273,16 +258,17 @@ function DisplayRoles()
 }
 
 /**
-    * Call service for interactions and add to interaction list
-    * 
-    *
-    *   @param : selectedrole - string
+ * Call service for interactions and add to interaction list
+ * @function GetInteractions
+ *
+ * @param {string} selectedrole
 */
 function GetInteractions(selectedrole)
 {
+    var browser = GetBrowser();
     var request = new ROSLIB.ServiceRequest({
         roles : [selectedrole],
-        uri : 'rocon:/*'
+        uri : 'rocon:/*/*/*/' + browser
     });
 
     CallService(ros, '/concert/interactions/get_interactions', 'rocon_interaction_msgs/GetInteractions', request, function(result) {
@@ -295,8 +281,8 @@ function GetInteractions(selectedrole)
 }
 
 /**
-    * Display the interaction list to the screen
-    *
+ * Display the interaction list to the screen
+ * @function DisplayInteractions
 */
 function DisplayInteractions()
 {
@@ -310,10 +296,11 @@ function DisplayInteractions()
 }
 
 /**
-    * Classify the interaction whether it's (web_url) or (web_app)
-    *
-    *
-    *   @param : interaction - interactions[]
+ * Classify the interaction whether it's (web_url) or (web_app)
+ * @function ClassifyInteraction
+ *
+ * @param {interaction} interaction
+ * @returns {string} extracted url
 */
 function ClassifyInteraction(interaction)
 {
@@ -335,16 +322,16 @@ function ClassifyInteraction(interaction)
 }
 
 /**
-    * Url synthesiser for sending remappings and parameters information.
-    *
-    *   1. convert and set the informations
-    *       - parameter (yaml string)
-    *       - remapping (rocon_std_msgs.Remapping[])
-    *   2. Package all the data in json format and dump it to one query string variable
-    *   3. Encode the url and finish constructing
+ * Url synthesiser for sending remappings and parameters information.
+ * @function PrepareWebappUrl
+ * 
+ * @param {interaction} interaction
+ * @param {string} base_url - url before edited
+ * @returns {string} the final remapped url
 */
 function PrepareWebappUrl(interaction, base_url)
 {
+    // convert and set the informations
     var interaction_data = {};
     interaction_data['display_name'] = interaction.display_name;
     interaction_data['parameters'] = jsyaml.load(interaction.parameters);
@@ -354,19 +341,21 @@ function PrepareWebappUrl(interaction, base_url)
         interaction_data['remappings'][value.remap_from] = value.remap_to;
     });
     
+    // Package all the data in json format and dump it to one query string variable
     query_string_mappings = {};
     query_string_mappings['interaction_data'] = JSON.stringify(interaction_data);
-
-    console.log(query_string_mappings['interaction_data']);
     
+    // Encode the url and finish constructing
     var url = base_url + "?interaction_data=" + encodeURIComponent(query_string_mappings['interaction_data']);
 
     return url;
 }
 
 /**
-    * Display the description list to the screen
-    *
+ * Display the description list to the screen
+ * @function DisplayDescription
+ *
+ * @param {interaction} interaction
 */
 function DisplayDescription(interaction)
 {
@@ -391,8 +380,8 @@ function DisplayDescription(interaction)
 }
 
 /**
-    * Event function when items in list is clicked
-    *
+ * Event function when item in role list and interaction list is clicked
+ * @function ListItemSelect
 */
 function ListItemSelect()
 {
@@ -430,8 +419,8 @@ function ListItemSelect()
 }
 
 /**
-    * Event function when 'Start App' Button is clicked
-    *
+ * Event function when 'Start App' button is clicked
+ * @function StartApp
 */
 function StartApp()
 {
@@ -446,8 +435,8 @@ function StartApp()
 }
 
 /**
-    * Init all lists
-    *
+ * Initialize all lists
+ * @function InitList
 */
 function InitList()
 {
@@ -458,17 +447,29 @@ function InitList()
     AddUrlMode();
 }
 
+/**
+ * Initialize master's info panel
+ * @function ResetMasterInfo
+*/
 function ResetMasterInfo()
 {
     $("#masterinfopanel").children().remove();
 }
 
+/**
+ * Initialize role list
+ * @function ResetRoleList
+*/
 function ResetRoleList()
 {
     glistRoles = [];
     $("#roles_listgroup").children().remove();
 }
 
+/**
+ * Initialize interaction list
+ * @function ResetInteractionList
+*/
 function ResetInteractionList()
 {
     glistInteractions = [];
@@ -476,12 +477,20 @@ function ResetInteractionList()
     $("#startappBtn").hide();
 }
 
+/**
+ * Initialize description list
+ * @function ResetDescriptionList
+*/
 function ResetDescriptionList()
 {
     $("#descriptionpanel").children().remove();
     $("#startappBtn").hide();
 }
 
+/**
+ * Switch to masterinfo mode
+ * @function MasterInfoMode
+*/
 function MasterInfoMode()
 {
     $("#selecturl").hide();
@@ -490,6 +499,10 @@ function MasterInfoMode()
     $("#urldeleteBtn").hide();
 }
 
+/**
+ * Switch to addurl mode
+ * @function AddUrlMode
+*/
 function AddUrlMode()
 {
     $("#selecturl").show();
@@ -499,8 +512,14 @@ function AddUrlMode()
 }
 
 /**
-    * Wrapper function for callService
-    *
+ * Wrapper function for Service.callService
+ * @function CallService
+ *
+ * @param {ROSLIB.Ros} ros - handled ros
+ * @param {string} serviceName - service's name
+ * @param {string} serviceType - service's type
+ * @param {ROSLIB.ServiceRequest} request - request
+ * @param {callBack} callback for request response
 */
 function CallService(ros, serviceName, serviceType, request, callBack)
 {
@@ -525,24 +544,13 @@ function CallService(ros, serviceName, serviceType, request, callBack)
 }
 
 /**
-    * Wrapper function for get Param
-    *
-*/
-function GetParam(ros, paramName, callBack)
-{
-    var request = new ROSLIB.Param({
-        ros : ros,
-        name : paramName
-    });
-    
-    request.get(function(value) {
-        callBack(value);
-    });
-}
-
-/**
-    * Wrapper function for subscribing topic
-    *
+ * Wrapper function for Topic.subscribe
+ * @function CallService
+ *
+ * @param {ROSLIB.Ros} ros - handled ros
+ * @param {string} topicName - topic's name
+ * @param {string} msgType - message type
+ * @param {callBack} callback for returned message
 */
 function SubscribeTopic(ros, topicName, msgType, callBack)
 {
@@ -552,6 +560,7 @@ function SubscribeTopic(ros, topicName, msgType, callBack)
         messageType : msgType
     });
     
+    // get returned message
     listener.subscribe(function(message) {
         callBack(message);
         listener.unsubscribe();
@@ -559,8 +568,10 @@ function SubscribeTopic(ros, topicName, msgType, callBack)
 }
 
 /**
-    * Get browser name
-    *
+ * Get browser name
+ * @function GetBrowser
+ *
+ * @returns {string} current browser's name
 */
 function GetBrowser()
 {
